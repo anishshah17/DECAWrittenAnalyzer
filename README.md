@@ -1,36 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DECA Draftroom (Interactive Agent Web App)
+
+DECA Draftroom is a Next.js web app for practicing DECA prepared-event writing. Students can select an event, paste draft content, and receive rubric-structured feedback with revision guidance.
 
 ## Getting Started
 
-First, run the development server:
+Install dependencies and run the development server:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Main route: [`src/app/page.tsx`](/Users/anish/Documents/DECAWrittenAnalyzer.worktrees/deca-interactive-agent-webapp/src/app/page.tsx)
+- Route styling: [`src/app/page.module.css`](/Users/anish/Documents/DECAWrittenAnalyzer.worktrees/deca-interactive-agent-webapp/src/app/page.module.css)
+- Global styling: [`src/app/globals.css`](/Users/anish/Documents/DECAWrittenAnalyzer.worktrees/deca-interactive-agent-webapp/src/app/globals.css)
+- App shell/layout: [`src/app/layout.tsx`](/Users/anish/Documents/DECAWrittenAnalyzer.worktrees/deca-interactive-agent-webapp/src/app/layout.tsx)
 
-## Learn More
+## Rubric Sourcing Status
 
-To learn more about Next.js, take a look at the following resources:
+Prepared-event rubric resources are now wired from DECA event pages on `deca.org` and stored in [`src/lib/preparedEvents.ts`](/Users/anish/Documents/DECAWrittenAnalyzer.worktrees/deca-interactive-agent-webapp/src/lib/preparedEvents.ts):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- 23 prepared events included
+- Event page link for each event
+- Guidelines PDF for each event
+- Evaluation-form or performance-indicator PDFs when surfaced on the event page
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The UI reads this source-of-truth directly in [`src/app/page.tsx`](/Users/anish/Documents/DECAWrittenAnalyzer.worktrees/deca-interactive-agent-webapp/src/app/page.tsx).

@@ -7,6 +7,7 @@ import {
   reviewCriteriaByCategory,
   type PreparedEvent,
 } from "@/lib/preparedEvents";
+import { extractTextFromFile } from "@/lib/documentText";
 
 const starterDraft = `Northstar Study Co. helps high-school students plan focused study sessions with short, local library workshops and a simple scheduling tool.
 
@@ -21,6 +22,11 @@ function eventResources(event: PreparedEvent) {
   return [
     { label: "Official event page", url: event.eventPage },
     { label: "Guidelines PDF", url: event.resources.guidelinesPdf },
+    {
+      label: "Statement of assurances & integrity (in guidelines)",
+      url: event.resources.guidelinesPdf,
+    },
+    { label: "Public examples (event page)", url: event.eventPage },
     ...(event.resources.evaluationFormPdf
       ? [{ label: "Evaluation form PDF", url: event.resources.evaluationFormPdf }]
       : []),
@@ -34,6 +40,9 @@ export default function Home() {
   const [selectedCode, setSelectedCode] = useState(preparedEvents[0].code);
   const [draft, setDraft] = useState("");
   const [hasReview, setHasReview] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState("");
+  const [isReadingFile, setIsReadingFile] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const selectedEvent =
     preparedEvents.find((event) => event.code === selectedCode) ?? preparedEvents[0];
   const criteria =
@@ -116,18 +125,19 @@ export default function Home() {
             <p>
               Category: <b>{selectedEvent.category}</b>
             </p>
-            <div className={styles.rubricList}>
-              {eventResources(selectedEvent).map((resource) => (
-                <div className={styles.rubric} key={resource.url}>
-                  <div>
+            <details className={styles.resourceMenu}>
+              <summary>
+                Event documents <span>{eventResources(selectedEvent).length} sources</span>
+              </summary>
+              <div className={styles.resourceList}>
+                {eventResources(selectedEvent).map((resource) => (
+                  <a href={resource.url} target="_blank" rel="noreferrer" key={resource.url}>
                     <span>{resource.label}</span>
-                    <a href={resource.url} target="_blank" rel="noreferrer">
-                      Open ↗
-                    </a>
-                  </div>
-                </div>
-              ))}
-            </div>
+                    <b>Open ↗</b>
+                  </a>
+                ))}
+              </div>
+            </details>
           </div>
 
           <div className={styles.reviewGrid}>
@@ -146,11 +156,46 @@ export default function Home() {
                 aria-label="Written project draft"
               />
               <div className={styles.editorFoot}>
-                <span>Use your own work and sources. This tool supports revision planning.</span>
-                <button className={styles.textButton} onClick={() => setDraft(starterDraft)}>
-                  Use starter draft ↗
-                </button>
+                <span>
+                  {uploadedFileName
+                    ? `Loaded ${uploadedFileName}`
+                    : "Use your own work and sources. This tool supports revision planning."}
+                </span>
+                <div className={styles.editorActions}>
+                  <label className={styles.uploadButton}>
+                    <input
+                      className={styles.fileInput}
+                      type="file"
+                      accept=".txt,.pdf,text/plain,application/pdf"
+                      onChange={async (event) => {
+                        const file = event.target.files?.[0];
+                        event.target.value = "";
+                        if (!file) return;
+                        setIsReadingFile(true);
+                        setUploadError("");
+                        try {
+                          setDraft(await extractTextFromFile(file));
+                          setUploadedFileName(file.name);
+                          setHasReview(false);
+                        } catch (error) {
+                          setUploadError(error instanceof Error ? error.message : "Could not read that file.");
+                        } finally {
+                          setIsReadingFile(false);
+                        }
+                      }}
+                    />
+                    {isReadingFile ? "Reading…" : "Upload text or PDF"}
+                  </label>
+                  <button className={styles.textButton} onClick={() => {
+                    setDraft(starterDraft);
+                    setUploadedFileName("");
+                    setUploadError("");
+                  }}>
+                    Use starter draft ↗
+                  </button>
+                </div>
               </div>
+              {uploadError ? <p className={styles.uploadError} role="alert">{uploadError}</p> : null}
               <button
                 className={styles.primaryButton}
                 onClick={runReview}

@@ -1,8 +1,22 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
 
-:root { --paper: oklch(97% .018 82); --ink: oklch(22% .02 75); --muted: oklch(54% .025 75); --line: oklch(87% .025 80); --panel: oklch(94% .018 82); --blue: oklch(49% .17 258); --red: oklch(57% .17 25); }
+:root {
+  --paper: oklch(97% .018 82);
+  --ink: oklch(22% .02 75);
+  --muted: oklch(54% .025 75);
+  --line: oklch(87% .025 80);
+  --panel: oklch(94% .018 82);
+  --blue: oklch(49% .17 258);
+  --red: oklch(57% .17 25);
+  --shadow: 0 18px 50px oklch(35% .02 70 / .08);
+}
+
 * { box-sizing: border-box; margin: 0; }
 html, body { min-height: 100%; }
 body { background: var(--paper); color: var(--ink); font-family: 'Manrope', sans-serif; -webkit-font-smoothing: antialiased; }
 button, select, textarea { font: inherit; }
 button { cursor: pointer; }
+button:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--blue) 40%, transparent);
+  outline-offset: 3px;
+}

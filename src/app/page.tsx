@@ -28,6 +28,7 @@ function eventResources(event: PreparedEvent) {
 
   return [
     { label: "Official event page", type: "WEB", url: event.eventPage },
+    { label: "2026-2027 DECA Guide", type: "PDF", url: "/resources/DECA-26-HS-Guide.pdf" },
     { label: "Guidelines", type: "PDF", url: event.resources.guidelinesPdf },
     {
       label: "Statement of assurances & integrity",

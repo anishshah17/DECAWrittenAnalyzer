@@ -1,3 +1,5 @@
+import { extractTextWithOcr } from "@/lib/ocrPdf";
+
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 function isTextItem(item: unknown): item is { str: string } {
@@ -39,8 +41,9 @@ export async function extractTextFromFile(file: File): Promise<string> {
   }
 
   const text = pages.join("\n\n").trim();
-  if (!text) {
-    throw new Error("No selectable text was found in this PDF. Scanned PDFs need OCR first.");
-  }
-  return text;
+  if (text) return text;
+
+  const ocrText = await extractTextWithOcr(document);
+  if (!ocrText) throw new Error("OCR could not find readable text in this PDF.");
+  return ocrText;
 }

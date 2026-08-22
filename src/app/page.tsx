@@ -25,10 +25,20 @@ function eventResources(event: PreparedEvent) {
   const statementOfAssurancesPdf =
     "https://cdn.prod.website-files.com/635c470cc81318fc3e9c1e0e/6a3c6a10f1b290dde7b30b67_HS_Fillable-PreparedStatement.pdf";
   const competitionAdviceUrl = "https://www.decadirect.org/subcategories/prepared-events";
+  const eventSpecificResources: Record<string, { label: string; type: string; url: string }[]> = {
+    BOR: [
+      { label: "BOR introduction 2026-2027", type: "PDF", url: "/resources/BOR-introduction-2026-2027.pdf" },
+      { label: "BOR advisor guide", type: "PDF", url: "/resources/BOR-advisor-guide.pdf" },
+    ],
+    "IMC-E": [{ label: "IMCE advisor tips", type: "PDF", url: "/resources/IMCE-advisor-tips.pdf" }],
+    "IMC-P": [{ label: "IMCP advisor tips", type: "PDF", url: "/resources/IMCP-advisor-tips.pdf" }],
+    "IMC-S": [{ label: "IMCS advisor tips", type: "PDF", url: "/resources/IMCS-advisor-tips.pdf" }],
+  };
 
   return [
     { label: "Official event page", type: "WEB", url: event.eventPage },
     { label: "2026-2027 DECA Guide", type: "PDF", url: "/resources/DECA-26-HS-Guide.pdf" },
+    ...(eventSpecificResources[event.code] ?? []),
     { label: "Guidelines", type: "PDF", url: event.resources.guidelinesPdf },
     {
       label: "Statement of assurances & integrity",
@@ -55,6 +65,9 @@ export default function Home() {
   const [selectedCode, setSelectedCode] = useState(preparedEvents[0].code);
   const [draft, setDraft] = useState("");
   const [hasReview, setHasReview] = useState(false);
+  const [analysisText, setAnalysisText] = useState("");
+  const [analysisError, setAnalysisError] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState("");
   const [isReadingFile, setIsReadingFile] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -84,9 +97,31 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  function runReview() {
+  async function runReview() {
     if (draft.trim().length < 40) return;
-    setHasReview(true);
+    setIsAnalyzing(true);
+    setAnalysisError("");
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          draft,
+          eventName: selectedEvent.name,
+          category: selectedEvent.category,
+          criteria,
+        }),
+      });
+      const result = (await response.json()) as { text?: string; error?: string };
+      if (!response.ok || !result.text) throw new Error(result.error ?? "Analysis failed.");
+      setAnalysisText(result.text);
+      setHasReview(true);
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : "Analysis failed.");
+      setHasReview(false);
+    } finally {
+      setIsAnalyzing(false);
+    }
   }
 
   async function loadFile(file: File) {
@@ -96,6 +131,7 @@ export default function Home() {
       setDraft(await extractTextFromFile(file));
       setUploadedFileName(file.name);
       setHasReview(false);
+      setAnalysisText("");
       playUiClick();
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Could not read that file.");
@@ -162,6 +198,8 @@ export default function Home() {
                 onChange={(event) => {
                   setSelectedCode(event.target.value);
                   setHasReview(false);
+                  setAnalysisText("");
+                  setAnalysisError("");
                   setIsResourceMenuOpen(false);
                 }}
               >
@@ -251,6 +289,8 @@ export default function Home() {
                       setUploadedFileName("");
                       setUploadError("");
                       setHasReview(false);
+                      setAnalysisText("");
+                      setAnalysisError("");
                     }}
                     disabled={!draft && !uploadedFileName && !uploadError}
                   >
@@ -304,10 +344,11 @@ export default function Home() {
                   playUiClick();
                   runReview();
                 }}
-                disabled={wordCount < 8}
+                disabled={wordCount < 8 || isAnalyzing}
               >
-                Analyze this draft <span>→</span>
+                {isAnalyzing ? "Analyzing..." : "Analyze this draft"} <span>→</span>
               </button>
+              {analysisError ? <p className={styles.uploadError} role="alert">{analysisError}</p> : null}
             </div>
 
             <div className={styles.feedbackPanel}>
@@ -336,13 +377,18 @@ export default function Home() {
                     </div>
                     <span className={styles.scoreBadge}>Event-aware pass</span>
                   </div>
-                  <div className={styles.rubricList}>
+                   <div className={styles.rubricList}>
                     {criteria.map((item, index) => (
                       <div className={styles.rubric} key={item}>
                         <div>
                           <span>{item}</span>
                           <b>{scoreFor(draft, index)}</b>
-                        </div>
+                   </div>
+                   <div className={styles.aiAnalysis}>
+                     {analysisText.split("\n").map((line, index) => (
+                       line.startsWith("## ") ? <h4 key={`${line}-${index}`}>{line.slice(3)}</h4> : <p key={`${line}-${index}`}>{line || " "}</p>
+                     ))}
+                   </div>
                         <div className={styles.track}>
                           <i style={{ width: `${scoreFor(draft, index)}%` }} />
                         </div>

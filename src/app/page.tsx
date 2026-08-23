@@ -72,7 +72,6 @@ export default function Home() {
   const [isReadingFile, setIsReadingFile] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [isDraggingFile, setIsDraggingFile] = useState(false);
-  const [isResourceMenuOpen, setIsResourceMenuOpen] = useState(false);
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
   const selectedEvent =
     preparedEvents.find((event) => event.code === selectedCode) ?? preparedEvents[0];
@@ -200,7 +199,6 @@ export default function Home() {
                   setHasReview(false);
                   setAnalysisText("");
                   setAnalysisError("");
-                  setIsResourceMenuOpen(false);
                 }}
               >
                 {preparedEvents.map((event) => (
@@ -214,33 +212,18 @@ export default function Home() {
               </p>
             </div>
             <div className={styles.eventTools}>
-              <span className={styles.toolsLabel}>RUBRIC TOOLS</span>
-              <div className={styles.resourceMenu}>
-                <button
-                  className={styles.resourceTrigger}
-                  aria-expanded={isResourceMenuOpen}
-                  aria-controls="event-resources"
-                  onClick={() => setIsResourceMenuOpen((open) => !open)}
-                >
-                  <span>Event documents</span>
-                  <small>{eventResources(selectedEvent).length} sources</small>
-                  <i aria-hidden="true">⌄</i>
-                </button>
-                <div
-                  id="event-resources"
-                  className={styles.resourceList}
-                  data-open={isResourceMenuOpen}
-                  aria-hidden={!isResourceMenuOpen}
-                >
-                  <div className={styles.resourceListHead}>SOURCE LIBRARY</div>
-                  {eventResources(selectedEvent).map((resource) => (
-                    <a href={resource.url} target="_blank" rel="noreferrer" key={`${resource.label}-${resource.url}`}>
-                      <span className={styles.resourceType}>{resource.type}</span>
-                      <span className={styles.resourceName}>{resource.label}</span>
-                      <b aria-hidden="true">↗</b>
-                    </a>
-                  ))}
-                </div>
+              <div className={styles.knowledgeHeader}>
+                <span className={styles.toolsLabel}>KNOWLEDGE BASE</span>
+                <small>{eventResources(selectedEvent).length} references</small>
+              </div>
+              <div className={styles.resourceGallery}>
+                {eventResources(selectedEvent).map((resource) => (
+                  <a href={resource.url} target="_blank" rel="noreferrer" key={`${resource.label}-${resource.url}`}>
+                    <span className={styles.resourceType}>{resource.type}</span>
+                    <span className={styles.resourceName}>{resource.label}</span>
+                    <b aria-hidden="true">↗</b>
+                  </a>
+                ))}
               </div>
             </div>
           </div>

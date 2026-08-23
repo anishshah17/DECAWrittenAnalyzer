@@ -13,6 +13,10 @@ npm run dev
 
 Then open [http://localhost:3000](http://localhost:3000).
 
+## Deployment Environment
+
+The analysis route reads `GEMINI_API_KEY` only on the server. Add it to the Vercel project under **Settings > Environment Variables** for the `Production` and `Preview` environments, then redeploy. Do not add `.env.local` to git.
+
 ## Project Structure
 
 - Main route: [`src/app/page.tsx`](/Users/anish/Documents/DECAWrittenAnalyzer.worktrees/deca-interactive-agent-webapp/src/app/page.tsx)

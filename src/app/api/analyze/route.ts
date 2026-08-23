@@ -10,7 +10,10 @@ type AnalyzeRequest = {
 export async function POST(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return Response.json({ error: "Gemini is not configured on the server." }, { status: 503 });
+    return Response.json(
+      { error: "Gemini is not configured. Add GEMINI_API_KEY in Vercel Project Settings > Environment Variables." },
+      { status: 503 },
+    );
   }
 
   let body: AnalyzeRequest;

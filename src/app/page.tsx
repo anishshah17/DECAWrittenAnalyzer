@@ -1,91 +1,78 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import styles from "./page.module.css";
 import {
   preparedEvents,
-  reviewCriteriaByCategory,
-  type PreparedEvent,
 } from "@/lib/preparedEvents";
 import { extractTextFromFile } from "@/lib/documentText";
 import { playUiClick } from "@/lib/uiSound";
+import { getRubricAreas, getRubricSubsections } from "@/lib/rubricSections";
+import { getEventResources } from "@/lib/eventResources";
+import { getEqualPointAllocation } from "@/lib/scoring";
 
 const starterDraft = `Northstar Study Co. helps high-school students plan focused study sessions with short, local library workshops and a simple scheduling tool.
 
 Our first-year goal is 240 paid memberships. We will measure workshop attendance, trial-to-member conversion, and the percentage of members who return each month.`;
 
+type AnalysisScore = { label: string; score: number; maxScore: number; evidence?: string; missing?: string[]; nextStep?: string };
+type DetectedEvent = { code: string; name: string; category: string; confidence: number; reason: string };
+
 function scoreFor(text: string, index: number): number {
-  const lengthBonus = Math.min(10, Math.floor(text.trim().length / 120));
-  return Math.min(96, [76, 68, 72, 62][index] + lengthBonus);
-}
-
-function eventResources(event: PreparedEvent) {
-  const penaltyPointChecklistPdf =
-    "https://cdn.prod.website-files.com/635c470cc81318fc3e9c1e0e/6a3c6ee3d2b16972cb29b095_HS_PenaltyPointChecklist.pdf";
-  const statementOfAssurancesPdf =
-    "https://cdn.prod.website-files.com/635c470cc81318fc3e9c1e0e/6a3c6a10f1b290dde7b30b67_HS_Fillable-PreparedStatement.pdf";
-  const competitionAdviceUrl = "https://www.decadirect.org/subcategories/prepared-events";
-  const eventSpecificResources: Record<string, { label: string; type: string; url: string }[]> = {
-    BOR: [
-      { label: "BOR introduction 2026-2027", type: "PDF", url: "/resources/BOR-introduction-2026-2027.pdf" },
-      { label: "BOR advisor guide", type: "PDF", url: "/resources/BOR-advisor-guide.pdf" },
-    ],
-    "IMC-E": [{ label: "IMCE advisor tips", type: "PDF", url: "/resources/IMCE-advisor-tips.pdf" }],
-    "IMC-P": [{ label: "IMCP advisor tips", type: "PDF", url: "/resources/IMCP-advisor-tips.pdf" }],
-    "IMC-S": [{ label: "IMCS advisor tips", type: "PDF", url: "/resources/IMCS-advisor-tips.pdf" }],
-  };
-
-  return [
-    { label: "Official event page", type: "WEB", url: event.eventPage },
-    { label: "2026-2027 DECA Guide", type: "PDF", url: "/resources/DECA-26-HS-Guide.pdf" },
-    ...(eventSpecificResources[event.code] ?? []),
-    { label: "Guidelines", type: "PDF", url: event.resources.guidelinesPdf },
-    {
-      label: "Statement of assurances & integrity",
-      type: "PDF",
-      url: statementOfAssurancesPdf,
-    },
-    ...(event.category === "Professional Selling and Consulting"
-      ? []
-      : [
-          { label: "Penalty point checklist", type: "PDF", url: penaltyPointChecklistPdf },
-          { label: "Competition advice", type: "WEB", url: competitionAdviceUrl },
-        ]),
-    ...(event.resources.evaluationFormPdf
-      ? [{ label: "Evaluation form", type: "PDF", url: event.resources.evaluationFormPdf }]
-      : []),
-    ...(event.resources.performanceIndicatorsPdf
-      ? [{ label: "Performance indicators", type: "PDF", url: event.resources.performanceIndicatorsPdf }]
-      : []),
-  ];
+  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const targetWords = 7500;
+  const completeness = Math.min(1, wordCount / targetWords);
+  const baseScore = [76, 68, 72, 62][index];
+  const score = baseScore * (0.35 + completeness * 0.65);
+  return Math.max(18, Math.min(96, Math.round(score)));
 }
 
 export default function Home() {
+  const router = useRouter();
   const [showIntro, setShowIntro] = useState(true);
   const [selectedCode, setSelectedCode] = useState(preparedEvents[0].code);
+  const [selectedCriteria, setSelectedCriteria] = useState<string[]>(
+    getRubricSubsections(preparedEvents[0].category),
+  );
   const [draft, setDraft] = useState("");
   const [hasReview, setHasReview] = useState(false);
   const [analysisText, setAnalysisText] = useState("");
+  const [analysisScores, setAnalysisScores] = useState<AnalysisScore[]>([]);
+  const [analysisOverallScore, setAnalysisOverallScore] = useState<number | null>(null);
   const [analysisError, setAnalysisError] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState("");
   const [isReadingFile, setIsReadingFile] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [isDetectingEvent, setIsDetectingEvent] = useState(false);
+  const [detectedEvent, setDetectedEvent] = useState<DetectedEvent | null>(null);
+  const [showEventDialog, setShowEventDialog] = useState(false);
+  const [eventConfirmed, setEventConfirmed] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
   const selectedEvent =
     preparedEvents.find((event) => event.code === selectedCode) ?? preparedEvents[0];
-  const criteria =
-    reviewCriteriaByCategory[selectedEvent.category] ??
-    reviewCriteriaByCategory.Entrepreneurship;
+  const rubricAreas = getRubricAreas(selectedEvent.category);
+  const criteria = getRubricSubsections(selectedEvent.category);
   const wordCount = useMemo(
     () => (draft.trim() ? draft.trim().split(/\s+/).length : 0),
     [draft],
   );
   const averageScore = Math.round(
-    criteria.map((_, index) => scoreFor(draft, index)).reduce((a, b) => a + b, 0) /
-      criteria.length,
+    selectedCriteria.map((_, index) => scoreFor(draft, index)).reduce((a, b) => a + b, 0) /
+      Math.max(1, selectedCriteria.length),
   );
+  const fallbackMaxScores = getEqualPointAllocation(selectedCriteria.length);
+  const fallbackScores: AnalysisScore[] = selectedCriteria.map((label, index) => ({
+    label,
+    score: Math.round((scoreFor(draft, index) / 100) * fallbackMaxScores[index] * 100) / 100,
+    maxScore: fallbackMaxScores[index],
+  }));
+  const rubricScores = analysisScores.length === selectedCriteria.length ? analysisScores : fallbackScores;
+  const displayedScore = analysisOverallScore ?? averageScore;
+  const needsEventConfirmation = Boolean(uploadedFileName);
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -97,7 +84,7 @@ export default function Home() {
   }, []);
 
   async function runReview() {
-    if (draft.trim().length < 40) return;
+    if (draft.trim().length < 40 || !selectedCriteria.length) return;
     setIsAnalyzing(true);
     setAnalysisError("");
     try {
@@ -108,12 +95,23 @@ export default function Home() {
           draft,
           eventName: selectedEvent.name,
           category: selectedEvent.category,
-          criteria,
+          criteria: selectedCriteria,
+          eventPage: selectedEvent.eventPage,
+          eventCode: selectedEvent.code,
         }),
       });
-      const result = (await response.json()) as { text?: string; error?: string };
-      if (!response.ok || !result.text) throw new Error(result.error ?? "Analysis failed.");
-      setAnalysisText(result.text);
+      const result = (await response.json()) as {
+        feedbackMarkdown?: string;
+        overallScore?: number;
+        rubricScores?: AnalysisScore[];
+        error?: string;
+      };
+      if (!response.ok || !result.feedbackMarkdown || !result.rubricScores) {
+        throw new Error(result.error ?? "Analysis failed.");
+      }
+      setAnalysisText(result.feedbackMarkdown);
+      setAnalysisScores(result.rubricScores);
+      setAnalysisOverallScore(result.overallScore ?? null);
       setHasReview(true);
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : "Analysis failed.");
@@ -127,16 +125,86 @@ export default function Home() {
     setIsReadingFile(true);
     setUploadError("");
     try {
-      setDraft(await extractTextFromFile(file));
+      const extractedText = await extractTextFromFile(file);
+      setDraft(extractedText);
       setUploadedFileName(file.name);
       setHasReview(false);
       setAnalysisText("");
+                   setAnalysisScores([]);
+                   setAnalysisOverallScore(null);
+       setSelectedCriteria(getRubricSubsections(selectedEvent.category));
+                   if (uploadedFileName) setEventConfirmed(false);
+      setEventConfirmed(false);
+      setDetectedEvent(null);
+      setIsDetectingEvent(true);
+      setShowEventDialog(true);
+      const response = await fetch("/api/detect-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draft: extractedText }),
+      });
+      const result = (await response.json()) as DetectedEvent & { error?: string };
+      if (!response.ok || !result.code) throw new Error(result.error ?? "Could not identify the event.");
+      setSelectedCode(result.code);
+      setSelectedCriteria(getRubricSubsections(result.category));
+      setDetectedEvent(result);
+      setShowEventDialog(true);
       playUiClick();
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Could not read that file.");
+      setShowEventDialog(true);
     } finally {
+      setIsDetectingEvent(false);
       setIsReadingFile(false);
     }
+  }
+
+  function confirmEvent() {
+    setEventConfirmed(true);
+    setShowEventDialog(false);
+    setUploadError("");
+  }
+
+  function cancelEventConfirmation() {
+    setShowEventDialog(false);
+    setEventConfirmed(false);
+  }
+
+  function clearDraft() {
+    setDraft("");
+    setUploadedFileName("");
+    setUploadError("");
+    setHasReview(false);
+    setAnalysisText("");
+    setAnalysisScores([]);
+    setAnalysisOverallScore(null);
+    setDetectedEvent(null);
+    setShowEventDialog(false);
+    setEventConfirmed(false);
+  }
+
+  function changeAnalysisScope(nextCriteria: string[]) {
+    setSelectedCriteria(nextCriteria);
+    setHasReview(false);
+    setAnalysisText("");
+    setAnalysisScores([]);
+    setAnalysisOverallScore(null);
+    setAnalysisError("");
+  }
+
+  function openDetailedFeedback() {
+    window.localStorage.setItem(
+      "deca-draftroom-feedback-v2",
+      JSON.stringify({
+        eventName: selectedEvent.name,
+        category: selectedEvent.category,
+        score: displayedScore,
+        wordCount,
+        text: analysisText,
+        rubricScores,
+      }),
+    );
+    router.push("/feedback");
   }
 
   return (
@@ -146,6 +214,47 @@ export default function Home() {
           <div className={styles.introMark}>D</div>
           <p>DECA Draftroom</p>
           <span>Prepared writing, made clearer.</span>
+        </div>
+      ) : null}
+      {showEventDialog ? (
+        <div className={styles.dialogBackdrop} role="presentation">
+          <section className={styles.eventDialog} role="dialog" aria-modal="true" aria-labelledby="event-dialog-title">
+            <span className={styles.panelLabel}>CHECK THE MATCH</span>
+            <h2 id="event-dialog-title">Is this the correct event?</h2>
+            {isDetectingEvent ? (
+              <p className={styles.dialogCopy}>Reading your written and comparing it with the event catalog...</p>
+            ) : (
+              <>
+                {detectedEvent ? (
+                  <div className={styles.detectedMatch}>
+                    <span>Suggested match · {detectedEvent.confidence}% confidence</span>
+                    <strong>{detectedEvent.code} · {detectedEvent.name}</strong>
+                    <p>{detectedEvent.reason}</p>
+                  </div>
+                ) : <p className={styles.dialogCopy}>{uploadError || "The event could not be detected. Choose the correct event manually before continuing."}</p>}
+                <label className={styles.dialogLabel} htmlFor="confirm-event">Use this event or choose another</label>
+                <select
+                  id="confirm-event"
+                  value={selectedCode}
+                onChange={(event) => {
+                   const nextEvent = preparedEvents.find((item) => item.code === event.target.value) ?? preparedEvents[0];
+                   const nextCriteria = getRubricSubsections(nextEvent.category);
+                   setSelectedCode(nextEvent.code);
+                   changeAnalysisScope(nextCriteria);
+                    setEventConfirmed(false);
+                  }}
+                >
+                  {preparedEvents.map((event) => <option key={event.code} value={event.code}>{event.code} · {event.name}</option>)}
+                </select>
+              </>
+            )}
+            <div className={styles.dialogActions}>
+              <button className={styles.textButton} type="button" onClick={cancelEventConfirmation}>Cancel</button>
+              <button className={styles.primarySmallButton} type="button" onClick={confirmEvent} disabled={isDetectingEvent}>
+                Confirm event <span>→</span>
+              </button>
+            </div>
+          </section>
         </div>
       ) : null}
       <main className={styles.shell} data-ready={!showIntro}>
@@ -195,10 +304,15 @@ export default function Home() {
                 id="event"
                 value={selectedCode}
                 onChange={(event) => {
-                  setSelectedCode(event.target.value);
+                  const nextEvent = preparedEvents.find((item) => item.code === event.target.value) ?? preparedEvents[0];
+                  const nextCriteria = getRubricSubsections(nextEvent.category);
+                  setSelectedCode(nextEvent.code);
+                  setSelectedCriteria(nextCriteria);
                   setHasReview(false);
                   setAnalysisText("");
                   setAnalysisError("");
+                  setAnalysisScores([]);
+                  setAnalysisOverallScore(null);
                 }}
               >
                 {preparedEvents.map((event) => (
@@ -214,19 +328,58 @@ export default function Home() {
             <div className={styles.eventTools}>
               <div className={styles.knowledgeHeader}>
                 <span className={styles.toolsLabel}>KNOWLEDGE BASE</span>
-                <small>{eventResources(selectedEvent).length} references</small>
+                <small>{getEventResources(selectedEvent).length} references</small>
               </div>
-              <div className={styles.resourceGallery}>
-                {eventResources(selectedEvent).map((resource) => (
-                  <a href={resource.url} target="_blank" rel="noreferrer" key={`${resource.label}-${resource.url}`}>
-                    <span className={styles.resourceType}>{resource.type}</span>
-                    <span className={styles.resourceName}>{resource.label}</span>
-                    <b aria-hidden="true">↗</b>
-                  </a>
-                ))}
-              </div>
+              <Link className={styles.knowledgeLink} href={`/knowledge-base?event=${selectedCode}`}>
+                <span>Open {selectedCode} resource gallery</span>
+                <b aria-hidden="true">→</b>
+              </Link>
+              <p className={styles.knowledgeDescription}>Browse official documents, examples, checklists, and advisor material in one place.</p>
             </div>
           </div>
+
+          <div className={styles.analysisLayout}>
+          <section className={styles.focusPanel} aria-labelledby="focus-heading">
+            <div className={styles.focusHeader}>
+              <div>
+                <span className={styles.toolsLabel}>ANALYSIS SCOPE</span>
+                <h3 id="focus-heading">Choose written-entry sections</h3>
+              </div>
+              <div className={styles.focusActions}>
+                <button type="button" onClick={() => changeAnalysisScope(criteria)}>All sections</button>
+                <button type="button" onClick={() => changeAnalysisScope([])}>Clear all</button>
+              </div>
+            </div>
+            <div className={styles.focusGroups}>
+              {rubricAreas.map((area, areaIndex) => (
+                <details className={styles.focusGroup} open key={area.title}>
+                  <summary><em>{String(areaIndex + 1).padStart(2, "0")}</em><span>{area.title}</span><i aria-hidden="true">⌄</i></summary>
+                  <div className={styles.focusSubsections}>
+                    {area.subsections.map((section) => {
+                      const isSelected = selectedCriteria.includes(section);
+                      return (
+                        <label className={styles.focusOption} data-selected={isSelected} key={section}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => changeAnalysisScope(isSelected
+                              ? selectedCriteria.filter((item) => item !== section)
+                              : [...selectedCriteria, section])}
+                          />
+                          <span>{section}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </details>
+              ))}
+            </div>
+            <p className={styles.focusHint}>
+              {selectedCriteria.length
+                ? `Gemini will focus on ${selectedCriteria.length} selected section${selectedCriteria.length === 1 ? "" : "s"}.`
+                : "Select at least one section before analyzing."}
+            </p>
+          </section>
 
           <div className={styles.reviewGrid}>
             <div className={styles.editorPanel}>
@@ -268,21 +421,19 @@ export default function Home() {
                     className={styles.clearButton}
                     type="button"
                     onClick={() => {
-                      setDraft("");
-                      setUploadedFileName("");
-                      setUploadError("");
-                      setHasReview(false);
-                      setAnalysisText("");
-                      setAnalysisError("");
+                       clearDraft();
+                       setAnalysisError("");
                     }}
                     disabled={!draft && !uploadedFileName && !uploadError}
                   >
                     Clear
                   </button>
                   <button className={styles.textButton} onClick={() => {
-                    setDraft(starterDraft);
-                    setUploadedFileName("");
-                    setUploadError("");
+                   setDraft(starterDraft);
+                   setUploadedFileName("");
+                   setUploadError("");
+                   setEventConfirmed(false);
+                   setDetectedEvent(null);
                   }}>
                     Use starter draft ↗
                   </button>
@@ -327,9 +478,9 @@ export default function Home() {
                   playUiClick();
                   runReview();
                 }}
-                disabled={wordCount < 8 || isAnalyzing}
+                disabled={wordCount < 8 || !selectedCriteria.length || isAnalyzing || (needsEventConfirmation && !eventConfirmed)}
               >
-                {isAnalyzing ? "Analyzing..." : "Analyze this draft"} <span>→</span>
+                {isAnalyzing ? "Analyzing..." : needsEventConfirmation && !eventConfirmed ? "Confirm event to analyze" : "Analyze this draft"} <span>→</span>
               </button>
               {analysisError ? <p className={styles.uploadError} role="alert">{analysisError}</p> : null}
             </div>
@@ -352,32 +503,30 @@ export default function Home() {
                 <div className={styles.results}>
                   <div className={styles.scoreLine}>
                     <div>
-                      <span className={styles.resultLabel}>Draft signal</span>
+                      <span className={styles.resultLabel}>Draft score</span>
                       <strong>
-                        {averageScore}
+                        {displayedScore.toFixed(1)}
                         <small>/100</small>
                       </strong>
                     </div>
                     <span className={styles.scoreBadge}>Event-aware pass</span>
                   </div>
-                   <div className={styles.rubricList}>
-                    {criteria.map((item, index) => (
-                      <div className={styles.rubric} key={item}>
-                        <div>
-                          <span>{item}</span>
-                          <b>{scoreFor(draft, index)}</b>
-                   </div>
-                   <div className={styles.aiAnalysis}>
-                     {analysisText.split("\n").map((line, index) => (
-                       line.startsWith("## ") ? <h4 key={`${line}-${index}`}>{line.slice(3)}</h4> : <p key={`${line}-${index}`}>{line || " "}</p>
-                     ))}
-                   </div>
-                        <div className={styles.track}>
-                          <i style={{ width: `${scoreFor(draft, index)}%` }} />
+                    <div className={styles.rubricList}>
+                      {rubricScores.map((item) => (
+                        <div className={styles.rubric} key={item.label}>
+                          <div>
+                            <span>{item.label}</span>
+                            <b>{item.score.toFixed(2)}<small>/{item.maxScore}</small></b>
+                          </div>
+                          <div className={styles.track}>
+                            <i style={{ width: `${item.maxScore ? (item.score / item.maxScore) * 100 : 0}%` }} />
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                    <button className={styles.detailButton} onClick={openDetailedFeedback} type="button">
+                      View detailed feedback for every subsection <span>↗</span>
+                    </button>
                   <div className={styles.callout}>
                     <span>01</span>
                     <p>
@@ -406,6 +555,7 @@ export default function Home() {
                 </div>
               )}
             </div>
+          </div>
           </div>
         </section>
       </div>
